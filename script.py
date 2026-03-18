@@ -4,6 +4,7 @@ import logging
 from dotenv import load_dotenv
 import os
 import random
+import webserver
 load_dotenv()
 token = os.getenv("DISCORD_TOKEN")
 handler = logging.FileHandler(filename='discord.log', encoding='utf-8', mode='w')
@@ -79,4 +80,5 @@ async def on_ready():
     print(f'Logged in as {bot.user} (ID: {bot.user.id})')
     print('------')
 if __name__ == "__main__":
+    webserver.keep_alive()
     bot.run(token)
