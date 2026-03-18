@@ -17,12 +17,12 @@ intents.members = True
 
 bot = commands.Bot(command_prefix='$', intents=intents)
 
-CLASSES = ["Light","Medium","Heavy"]
+CLASSES = ["Light", "Medium", "Heavy"]
 
 WEAPONS = {
-    "Light": ["93R", "ARN-220", "Dagger", "LH1", "M11", "M26 Matter", "Recurve Bow", "SH1900", "SR-84", "Sword", "Throwing Knives", "V9S", "XP-54"],
-    "Medium": ["AKM", "CB-01 Repeater", "Cerberus 12GA", "CL-40", "Dual Blades", "FAMAS", "FCAR", "Model 1887", "P90", "Pike-556", "R.357", "Riot Shield"],
-    "Heavy": [".50 Akimbo", "BFR Titan", "Flamethrower", "KS-23", "Lewis Gun", "M134 Minigun", "M60", "MGL32", "SA1216", "ShAK-50", "Sledgehammer", "Spear"]
+    "Light": ["93R","ARN-220","Dagger","LH1","M11","M26 Matter","Recurve Bow","SH1900","SR-84","Sword","Throwing Knives","V9S","XP-54"],
+    "Medium": ["AKM","CB-01 Repeater","Cerberus 12GA","CL-40","Dual Blades","FAMAS","FCAR","Model 1887","P90","Pike-556","R.357","Riot Shield"],
+    "Heavy": [".50 Akimbo","BFR Titan","Flamethrower","KS-23","Lewis Gun","M134 Minigun","M60","MGL32","SA1216","ShAK-50","Sledgehammer","Spear"]
 }
 
 ABILITIES = {
@@ -49,14 +49,11 @@ GADGETS_BY_CLASS = {
     ]
 }
 
-def generate_random_loadout(player_class=None):
 
-    if not player_class:
-        player_class = random.choice(CLASSES)
+def generate_loadout(player_class):
 
     weapon = random.choice(WEAPONS[player_class])
     ability = random.choice(ABILITIES[player_class])
-
     gadgets = random.sample(GADGETS_BY_CLASS[player_class], 3)
 
     return {
@@ -67,7 +64,11 @@ def generate_random_loadout(player_class=None):
     }
 
 
-def create_embed(loadout, title, ctx):
+def random_loadout():
+    return generate_loadout(random.choice(CLASSES))
+
+
+def build_embed(loadout, title, ctx):
 
     embed = discord.Embed(
         title=title,
@@ -90,48 +91,36 @@ def create_embed(loadout, title, ctx):
     return embed
 
 
-@bot.command(name="loadout", aliases=["random","roll"])
-async def random_loadout(ctx):
+@bot.command(aliases=["random","roll"])
+async def loadout(ctx):
 
-    loadout = generate_random_loadout()
-
-    embed = create_embed(loadout, "🎲 Random Loadout", ctx)
-
-    await ctx.send(embed=embed)
+    l = random_loadout()
+    await ctx.send(embed=build_embed(l, "🎲 Random Loadout", ctx))
 
 
-@bot.command(name="light")
-async def random_light(ctx):
+@bot.command()
+async def light(ctx):
 
-    loadout = generate_random_loadout("Light")
-
-    embed = create_embed(loadout, "⚡ Random Light Loadout", ctx)
-
-    await ctx.send(embed=embed)
+    l = generate_loadout("Light")
+    await ctx.send(embed=build_embed(l, "⚡ Random Light Loadout", ctx))
 
 
-@bot.command(name="medium")
-async def random_medium(ctx):
+@bot.command()
+async def medium(ctx):
 
-    loadout = generate_random_loadout("Medium")
-
-    embed = create_embed(loadout, "⚙️ Random Medium Loadout", ctx)
-
-    await ctx.send(embed=embed)
+    l = generate_loadout("Medium")
+    await ctx.send(embed=build_embed(l, "⚙️ Random Medium Loadout", ctx))
 
 
-@bot.command(name="heavy")
-async def random_heavy(ctx):
+@bot.command()
+async def heavy(ctx):
 
-    loadout = generate_random_loadout("Heavy")
-
-    embed = create_embed(loadout, "💪 Random Heavy Loadout", ctx)
-
-    await ctx.send(embed=embed)
+    l = generate_loadout("Heavy")
+    await ctx.send(embed=build_embed(l, "💪 Random Heavy Loadout", ctx))
 
 
-@bot.command(name="team")
-async def random_team(ctx):
+@bot.command()
+async def team(ctx):
 
     embed = discord.Embed(
         title="🎲 Random Team Loadouts",
@@ -141,13 +130,44 @@ async def random_team(ctx):
 
     for i in range(1,4):
 
-        loadout = generate_random_loadout()
+        l = random_loadout()
 
         value = (
-            f"Class: **{loadout['class']}**\n"
-            f"Weapon: {loadout['weapon']}\n"
-            f"Ability: {loadout['ability']}\n"
-            f"Gadgets:\n" + "\n".join(f"• {g}" for g in loadout["gadgets"])
+            f"Class: **{l['class']}**\n"
+            f"Weapon: {l['weapon']}\n"
+            f"Ability: {l['ability']}\n"
+            f"Gadgets:\n" +
+            "\n".join(f"• {g}" for g in l["gadgets"])
+        )
+
+        embed.add_field(name=f"Player {i}", value=value, inline=False)
+
+    embed.set_footer(text=f"Requested by {ctx.author.display_name}")
+
+    await ctx.send(embed=embed)
+
+
+@bot.command()
+async def scrim(ctx):
+
+    embed = discord.Embed(
+        title="🏆 Scrim Mode (Balanced Team)",
+        color=discord.Color.gold(),
+        timestamp=ctx.message.created_at
+    )
+
+    classes = ["Light", "Medium", "Heavy"]
+
+    for i, c in enumerate(classes, start=1):
+
+        l = generate_loadout(c)
+
+        value = (
+            f"Class: **{l['class']}**\n"
+            f"Weapon: {l['weapon']}\n"
+            f"Ability: {l['ability']}\n"
+            f"Gadgets:\n" +
+            "\n".join(f"• {g}" for g in l["gadgets"])
         )
 
         embed.add_field(name=f"Player {i}", value=value, inline=False)
