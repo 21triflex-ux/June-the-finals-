@@ -51,7 +51,6 @@ GADGETS_BY_CLASS = {
 
 
 def generate_loadout(player_class):
-
     weapon = random.choice(WEAPONS[player_class])
     ability = random.choice(ABILITIES[player_class])
     gadgets = random.sample(GADGETS_BY_CLASS[player_class], 3)
@@ -68,8 +67,17 @@ def random_loadout():
     return generate_loadout(random.choice(CLASSES))
 
 
-def build_embed(loadout, title, ctx):
+def format_loadout(l):
+    return (
+        f"Class: **{l['class']}**\n"
+        f"Weapon: {l['weapon']}\n"
+        f"Ability: {l['ability']}\n"
+        f"Gadgets:\n" +
+        "\n".join(f"• {g}" for g in l["gadgets"])
+    )
 
+
+def build_embed(loadout, title, ctx):
     embed = discord.Embed(
         title=title,
         color=discord.Color.blue(),
@@ -87,41 +95,65 @@ def build_embed(loadout, title, ctx):
     )
 
     embed.set_footer(text=f"Requested by {ctx.author.display_name}")
-
     return embed
 
 
 @bot.command(aliases=["random","roll"])
 async def loadout(ctx):
-
     l = random_loadout()
     await ctx.send(embed=build_embed(l, "🎲 Random Loadout", ctx))
 
 
 @bot.command()
 async def light(ctx):
-
-    l = generate_loadout("Light")
-    await ctx.send(embed=build_embed(l, "⚡ Random Light Loadout", ctx))
+    await ctx.send(embed=build_embed(generate_loadout("Light"), "⚡ Random Light Loadout", ctx))
 
 
 @bot.command()
 async def medium(ctx):
-
-    l = generate_loadout("Medium")
-    await ctx.send(embed=build_embed(l, "⚙️ Random Medium Loadout", ctx))
+    await ctx.send(embed=build_embed(generate_loadout("Medium"), "⚙️ Random Medium Loadout", ctx))
 
 
 @bot.command()
 async def heavy(ctx):
+    await ctx.send(embed=build_embed(generate_loadout("Heavy"), "💪 Random Heavy Loadout", ctx))
 
-    l = generate_loadout("Heavy")
-    await ctx.send(embed=build_embed(l, "💪 Random Heavy Loadout", ctx))
+
+# ✅ NEW TEAMS COMMAND (FIXED)
+@bot.command()
+async def teams(ctx):
+    users = ctx.message.mentions
+
+    if len(users) < 2:
+        await ctx.send("You need to mention at least 2 users!")
+        return
+
+    random.shuffle(users)
+    mid = len(users) // 2
+
+    team1 = users[:mid]
+    team2 = users[mid:]
+
+    embed = discord.Embed(
+        title="🔥 Teams + Loadouts 🔥",
+        color=discord.Color.orange()
+    )
+
+    def build_team(team):
+        text = ""
+        for user in team:
+            l = random_loadout()
+            text += f"{user.mention}\n{format_loadout(l)}\n\n"
+        return text
+
+    embed.add_field(name="Team 1", value=build_team(team1), inline=False)
+    embed.add_field(name="Team 2", value=build_team(team2), inline=False)
+
+    await ctx.send(embed=embed)
 
 
 @bot.command()
 async def team(ctx):
-
     embed = discord.Embed(
         title="🎲 Random Team Loadouts",
         color=discord.Color.purple(),
@@ -129,63 +161,34 @@ async def team(ctx):
     )
 
     for i in range(1,4):
-
         l = random_loadout()
-
-        value = (
-            f"Class: **{l['class']}**\n"
-            f"Weapon: {l['weapon']}\n"
-            f"Ability: {l['ability']}\n"
-            f"Gadgets:\n" +
-            "\n".join(f"• {g}" for g in l["gadgets"])
-        )
-
-        embed.add_field(name=f"Player {i}", value=value, inline=False)
-
-    embed.set_footer(text=f"Requested by {ctx.author.display_name}")
+        embed.add_field(name=f"Player {i}", value=format_loadout(l), inline=False)
 
     await ctx.send(embed=embed)
 
 
 @bot.command()
 async def scrim(ctx):
-
     embed = discord.Embed(
         title="🏆 Scrim Mode (Balanced Team)",
         color=discord.Color.gold(),
         timestamp=ctx.message.created_at
     )
 
-    classes = ["Light", "Medium", "Heavy"]
-
-    for i, c in enumerate(classes, start=1):
-
+    for i, c in enumerate(["Light","Medium","Heavy"], start=1):
         l = generate_loadout(c)
-
-        value = (
-            f"Class: **{l['class']}**\n"
-            f"Weapon: {l['weapon']}\n"
-            f"Ability: {l['ability']}\n"
-            f"Gadgets:\n" +
-            "\n".join(f"• {g}" for g in l["gadgets"])
-        )
-
-        embed.add_field(name=f"Player {i}", value=value, inline=False)
-
-    embed.set_footer(text=f"Requested by {ctx.author.display_name}")
+        embed.add_field(name=f"Player {i}", value=format_loadout(l), inline=False)
 
     await ctx.send(embed=embed)
 
 
 @bot.event
 async def on_ready():
-
     print(f'Logged in as {bot.user} (ID: {bot.user.id})')
     print('------')
 
 
 if __name__ == "__main__":
-
     webserver.keep_alive()
 
     if not token:
