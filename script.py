@@ -119,35 +119,42 @@ async def heavy(ctx):
     await ctx.send(embed=build_embed(generate_loadout("Heavy"), "💪 Random Heavy Loadout", ctx))
 
 
-# ✅ NEW TEAMS COMMAND (FIXED)
+# 🔥 MULTI-TEAM COMMAND
 @bot.command()
-async def teams(ctx):
+async def teams(ctx, num_teams: int):
     users = ctx.message.mentions
 
     if len(users) < 2:
         await ctx.send("You need to mention at least 2 users!")
         return
 
-    random.shuffle(users)
-    mid = len(users) // 2
+    if num_teams < 2:
+        await ctx.send("You need at least 2 teams!")
+        return
 
-    team1 = users[:mid]
-    team2 = users[mid:]
+    if num_teams > len(users):
+        await ctx.send("Too many teams for the number of players!")
+        return
+
+    random.shuffle(users)
+
+    teams = [[] for _ in range(num_teams)]
+
+    for i, user in enumerate(users):
+        teams[i % num_teams].append(user)
 
     embed = discord.Embed(
-        title="🔥 Teams + Loadouts 🔥",
+        title=f"🔥 {num_teams} Teams + Loadouts 🔥",
         color=discord.Color.orange()
     )
 
-    def build_team(team):
+    for i, team in enumerate(teams, start=1):
         text = ""
         for user in team:
             l = random_loadout()
             text += f"{user.mention}\n{format_loadout(l)}\n\n"
-        return text
 
-    embed.add_field(name="Team 1", value=build_team(team1), inline=False)
-    embed.add_field(name="Team 2", value=build_team(team2), inline=False)
+        embed.add_field(name=f"Team {i}", value=text, inline=False)
 
     await ctx.send(embed=embed)
 
@@ -160,7 +167,7 @@ async def team(ctx):
         timestamp=ctx.message.created_at
     )
 
-    for i in range(1,4):
+    for i in range(1, 4):
         l = random_loadout()
         embed.add_field(name=f"Player {i}", value=format_loadout(l), inline=False)
 
@@ -175,7 +182,7 @@ async def scrim(ctx):
         timestamp=ctx.message.created_at
     )
 
-    for i, c in enumerate(["Light","Medium","Heavy"], start=1):
+    for i, c in enumerate(["Light", "Medium", "Heavy"], start=1):
         l = generate_loadout(c)
         embed.add_field(name=f"Player {i}", value=format_loadout(l), inline=False)
 
