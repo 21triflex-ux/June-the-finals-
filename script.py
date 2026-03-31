@@ -5,31 +5,18 @@ from dotenv import load_dotenv
 import os
 import random
 import webserver
-import openai
 
-# =============== LOAD ENV ===============
 load_dotenv()
-DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+token = os.getenv("DISCORD_TOKEN")
 
-if not DISCORD_TOKEN:
-    raise ValueError("DISCORD_TOKEN not found in environment variables")
-if not OPENAI_API_KEY:
-    raise ValueError("OPENAI_API_KEY not found in environment variables")
-
-openai.api_key = OPENAI_API_KEY
-
-# =============== LOGGING ===============
 handler = logging.FileHandler(filename='discord.log', encoding='utf-8', mode='w')
 
-# =============== BOT SETUP ===============
 intents = discord.Intents.default()
 intents.message_content = True
 intents.members = True
 
 bot = commands.Bot(command_prefix='$', intents=intents)
 
-# =============== LOADOUT DATA ===============
 CLASSES = ["Light", "Medium", "Heavy"]
 
 WEAPONS = {
@@ -62,15 +49,23 @@ GADGETS_BY_CLASS = {
     ]
 }
 
-# =============== LOADOUT FUNCTIONS ===============
+
 def generate_loadout(player_class):
     weapon = random.choice(WEAPONS[player_class])
     ability = random.choice(ABILITIES[player_class])
     gadgets = random.sample(GADGETS_BY_CLASS[player_class], 3)
-    return {"class": player_class, "weapon": weapon, "ability": ability, "gadgets": gadgets}
+
+    return {
+        "class": player_class,
+        "weapon": weapon,
+        "ability": ability,
+        "gadgets": gadgets
+    }
+
 
 def random_loadout():
     return generate_loadout(random.choice(CLASSES))
+
 
 def format_loadout(l):
     return (
@@ -81,102 +76,129 @@ def format_loadout(l):
         "\n".join(f"• {g}" for g in l["gadgets"])
     )
 
+
 def build_embed(loadout, title, ctx):
     embed = discord.Embed(
         title=title,
         color=discord.Color.blue(),
         timestamp=ctx.message.created_at
     )
+
     embed.add_field(name="Class", value=f"**{loadout['class']}**", inline=False)
     embed.add_field(name="Weapon", value=loadout["weapon"], inline=True)
     embed.add_field(name="Ability", value=loadout["ability"], inline=True)
-    embed.add_field(name="Gadgets", value="\n".join(f"• {g}" for g in loadout["gadgets"]), inline=False)
+
+    embed.add_field(
+        name="Gadgets",
+        value="\n".join(f"• {g}" for g in loadout["gadgets"]),
+        inline=False
+    )
+
     embed.set_footer(text=f"Requested by {ctx.author.display_name}")
     return embed
 
-# =============== LOADOUT COMMANDS ===============
+
 @bot.command(aliases=["random","roll"])
 async def loadout(ctx):
     l = random_loadout()
     await ctx.send(embed=build_embed(l, "🎲 Random Loadout", ctx))
 
+
 @bot.command()
 async def light(ctx):
     await ctx.send(embed=build_embed(generate_loadout("Light"), "⚡ Random Light Loadout", ctx))
+
 
 @bot.command()
 async def medium(ctx):
     await ctx.send(embed=build_embed(generate_loadout("Medium"), "⚙️ Random Medium Loadout", ctx))
 
+
 @bot.command()
 async def heavy(ctx):
     await ctx.send(embed=build_embed(generate_loadout("Heavy"), "💪 Random Heavy Loadout", ctx))
 
+
+# 🔥 MULTI-TEAM COMMAND
 @bot.command()
 async def teams(ctx, num_teams: int):
     users = ctx.message.mentions
+
     if len(users) < 2:
         await ctx.send("You need to mention at least 2 users!")
         return
+
     if num_teams < 2:
         await ctx.send("You need at least 2 teams!")
         return
+
     if num_teams > len(users):
         await ctx.send("Too many teams for the number of players!")
         return
+
     random.shuffle(users)
+
     teams = [[] for _ in range(num_teams)]
+
     for i, user in enumerate(users):
         teams[i % num_teams].append(user)
-    embed = discord.Embed(title=f"🔥 {num_teams} Teams + Loadouts 🔥", color=discord.Color.orange())
+
+    embed = discord.Embed(
+        title=f"🔥 {num_teams} Teams + Loadouts 🔥",
+        color=discord.Color.orange()
+    )
+
     for i, team in enumerate(teams, start=1):
         text = ""
         for user in team:
             l = random_loadout()
             text += f"{user.mention}\n{format_loadout(l)}\n\n"
+
         embed.add_field(name=f"Team {i}", value=text, inline=False)
+
     await ctx.send(embed=embed)
+
 
 @bot.command()
 async def team(ctx):
-    embed = discord.Embed(title="🎲 Random Team Loadouts", color=discord.Color.purple(), timestamp=ctx.message.created_at)
+    embed = discord.Embed(
+        title="🎲 Random Team Loadouts",
+        color=discord.Color.purple(),
+        timestamp=ctx.message.created_at
+    )
+
     for i in range(1, 4):
         l = random_loadout()
         embed.add_field(name=f"Player {i}", value=format_loadout(l), inline=False)
+
     await ctx.send(embed=embed)
+
 
 @bot.command()
 async def scrim(ctx):
-    embed = discord.Embed(title="🏆 Scrim Mode (Balanced Team)", color=discord.Color.gold(), timestamp=ctx.message.created_at)
+    embed = discord.Embed(
+        title="🏆 Scrim Mode (Balanced Team)",
+        color=discord.Color.gold(),
+        timestamp=ctx.message.created_at
+    )
+
     for i, c in enumerate(["Light", "Medium", "Heavy"], start=1):
         l = generate_loadout(c)
         embed.add_field(name=f"Player {i}", value=format_loadout(l), inline=False)
+
     await ctx.send(embed=embed)
 
-# =============== OPENAI CHATGPT COMMAND ===============
-@bot.command()
-async def chat(ctx, *, prompt):
-    """Chat with ChatGPT"""
-    try:
-        response = openai.ChatCompletion.create(
-            model="gpt-4o-mini",
-            messages=[
-                {"role": "system", "content": "You are a helpful Discord assistant."},
-                {"role": "user", "content": prompt}
-            ]
-        )
-        reply = response.choices[0].message.content
-        await ctx.send(reply)
-    except Exception as e:
-        await ctx.send(f"❌ Error contacting OpenAI API: {e}")
 
-# =============== EVENTS ===============
 @bot.event
 async def on_ready():
     print(f'Logged in as {bot.user} (ID: {bot.user.id})')
     print('------')
 
-# =============== RUN BOT ===============
+
 if __name__ == "__main__":
     webserver.keep_alive()
-    bot.run(DISCORD_TOKEN, log_handler=handler)
+
+    if not token:
+        raise ValueError("DISCORD_TOKEN not found in environment variables")
+
+    bot.run(token, log_handler=handler)
