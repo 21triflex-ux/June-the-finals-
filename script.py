@@ -95,7 +95,7 @@ class TeamView(View):
         await interaction.response.defer()
         await self.update_message(interaction)
 
-    @button(label="Start Teams", style=discord.ButtonStyle.blurple)
+    @button(label="Done", style=discord.ButtonStyle.blurple)
     async def start_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         if interaction.user != self.host:
             await interaction.response.send_message("Only the host can start!", ephemeral=True)
