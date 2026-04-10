@@ -19,17 +19,17 @@ bot = commands.Bot(command_prefix='$', intents=intents)
 CLASSES = ["Light", "Medium", "Heavy"]
 WEAPONS = {
     "Light": ["93R","ARN-220","Dagger","LH1","M11","M26 Matter","Recurve Bow","SH1900","SR-84","Sword","Throwing Knives","V9S","XP-54"],
-    "Medium": ["AKM","CB-01 Repeater","Cerberus 12GA","CL-40","Dual Blades","FAMAS","FCAR","Model 1887","P90","Pike-556","R.357","Riot Shield"],
+    "Medium": ["AKM","CB-01 Repeater","Cerberus 12GA","CL-40","Dual Blades","FAMAS","FCAR","Model 1887","P90","Pike-556","R.357","Riot Shield","Chimera-XB"],
     "Heavy": [".50 Akimbo","BFR Titan","Flamethrower","KS-23","Lewis Gun","M134 Minigun","M60","MGL32","SA1216","ShAK-50","Sledgehammer","Spear"]
 }
 ABILITIES = {
     "Light": ["Cloaking Device","Evasive Dash","Grappling Hook"],
-    "Medium": ["Healing Beam","Dematerializer","Guardian Turret","Recon Senses"],
+    "Medium": ["Healing Beam","Dematerializer","Guardian Turret","Shock Wave"],
     "Heavy": ["Charge 'N' Slam","Mesh Shield","Goo Gun","Winch Claw"]
 }
 GADGETS_BY_CLASS = {
-    "Light": ["Breach Charge","Gateway","Glitch Grenade","Gravity Vortex","H+ Infuser","Sonar Grenade","Nullifier","Thermal Bore","Thermal Vision","Tracking Dart","Vanishing Bomb","Flashbang","Frag Grenade","Gas Grenade","Goo Grenade","Pyro Grenade","Smoke Grenade"],
-    "Medium": ["APS Turret","Breach Drill","Data Reshaper","Defibrillator","Explosive Mine","Gas Mine","Glitch Trap","Jump Pad","Zipline","Proximity Sensor","Flashbang","Frag Grenade","Gas Grenade","Goo Grenade","Pyro Grenade","Smoke Grenade"],
+    "Light": ["Breach Charge","Gateway","Glitch Grenade","Gravity Vortex","H+ Infuser","Sonar Grenade","Nullifier","Thermal Bore","Tracking Dart","Vanishing Bomb","Flashbang","Frag Grenade","Gas Grenade","Goo Grenade","Pyro Grenade","Smoke Grenade"],
+    "Medium": ["APS Turret","Breach Drill","Data Reshaper","Defibrillator","Explosive Mine","Gas Mine","Glitch Trap","Jump Pad","Zipline","Proximity Sensor","Flashbang","Frag Grenade","Gas Grenade","Goo Grenade","Pyro Grenade","Smoke Grenade","Hover Pad"],
     "Heavy": ["Anti-Gravity Cube","Barricade","C4","Dome Shield","Explosive Mine","Healing Emitter","Proximity Sensor","Lockbolt","Pyro Mine","RPG-7","Flashbang","Frag Grenade","Gas Grenade","Goo Grenade","Pyro Grenade","Smoke Grenade"]
 }
 
@@ -62,16 +62,18 @@ def build_embed(loadout, title, ctx):
 
 # ── INTERACTIVE TEAM LOBBY ──
 class TeamView(View):
-    def __init__(self, num_teams, host):
+    def __init__(self, num_teams, host, with_loadouts=True):
         super().__init__(timeout=300)
         self.players = set()
         self.num_teams = num_teams
         self.host = host
+        self.with_loadouts = with_loadouts
+        self.lobby_title = "🎮 Team Lobby" if with_loadouts else "👥 People Lobby"
 
     async def update_message(self, interaction):
         player_list = "\n".join([p.mention for p in self.players]) or "No players yet"
         embed = discord.Embed(
-            title="🎮 Team Lobby",
+            title=self.lobby_title,
             description=f"**Teams:** {self.num_teams}\n\n**Players ({len(self.players)}):**\n{player_list}",
             color=discord.Color.blue()
         )
@@ -107,15 +109,23 @@ class TeamView(View):
         players_list = list(self.players)
         random.shuffle(players_list)
         teams = [[] for _ in range(self.num_teams)]
+
         for i, player in enumerate(players_list):
             teams[i % self.num_teams].append(player)
 
-        embed = discord.Embed(title=f"🔥 {self.num_teams} Teams Generated 🔥", color=discord.Color.orange())
+        if self.with_loadouts:
+            embed = discord.Embed(title=f"🔥 {self.num_teams} Teams + Loadouts 🔥", color=discord.Color.orange())
+        else:
+            embed = discord.Embed(title=f"👥 {self.num_teams} Teams Split 👥", color=discord.Color.orange())
+
         for i, team in enumerate(teams, start=1):
             text = ""
             for user in team:
-                l = random_loadout()
-                text += f"{user.mention}\n{format_loadout(l)}\n\n"
+                if self.with_loadouts:
+                    l = random_loadout()
+                    text += f"{user.mention}\n{format_loadout(l)}\n\n"
+                else:
+                    text += f"{user.mention}\n\n"
             embed.add_field(name=f"Team {i}", value=text, inline=False)
 
         await interaction.response.send_message(embed=embed)
@@ -146,19 +156,24 @@ async def teams(ctx, num_teams: int):
         return
     view = TeamView(num_teams, ctx.author)
     embed = discord.Embed(
-        title="🎮 Team Lobby",
+        title=view.lobby_title,
         description=f"**Teams:** {num_teams}\n\nClick **Join** to enter!",
         color=discord.Color.blue()
     )
     await ctx.send(embed=embed, view=view)
 
 @bot.command()
-async def team(ctx):
-    embed = discord.Embed(title="🎲 Random Team Loadouts", color=discord.Color.purple(), timestamp=ctx.message.created_at)
-    for i in range(1, 4):
-        l = random_loadout()
-        embed.add_field(name=f"Player {i}", value=format_loadout(l), inline=False)
-    await ctx.send(embed=embed)
+async def people(ctx, num_teams: int):
+    if num_teams < 2:
+        await ctx.send("You need at least 2 teams!")
+        return
+    view = TeamView(num_teams, ctx.author, with_loadouts=False)
+    embed = discord.Embed(
+        title=view.lobby_title,
+        description=f"**Teams:** {num_teams}\n\nClick **Join** to enter!",
+        color=discord.Color.blue()
+    )
+    await ctx.send(embed=embed, view=view)
 
 @bot.command()
 async def scrim(ctx):
