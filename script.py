@@ -51,24 +51,17 @@ def format_loadout(l):
         "\n".join(f"• {g}" for g in l["gadgets"])
     )
 
-def build_embed(loadout, title, ctx):
-    embed = discord.Embed(title=title, color=discord.Color.blue(), timestamp=ctx.message.created_at)
-    embed.add_field(name="Class", value=f"**{loadout['class']}**", inline=False)
-    embed.add_field(name="Weapon", value=loadout["weapon"], inline=True)
-    embed.add_field(name="Ability", value=loadout["ability"], inline=True)
-    embed.add_field(name="Gadgets", value="\n".join(f"• {g}" for g in loadout["gadgets"]), inline=False)
-    embed.set_footer(text=f"Requested by {ctx.author.display_name}")
-    return embed
-
-# ── INTERACTIVE TEAM LOBBY (REUSABLE + FORCE-ADD + REPLACES MESSAGE) ──
+# ── INTERACTIVE TEAM LOBBY (Persistent + Separate Results Message) ──
 class TeamView(View):
     def __init__(self, num_teams, host, with_loadouts=True, initial_players=None):
-        super().__init__(timeout=1800)          # 30 minutes
+        super().__init__(timeout=1800)  # 30 minutes
         self.players = set(initial_players) if initial_players else set()
         self.num_teams = num_teams
         self.host = host
         self.with_loadouts = with_loadouts
         self.lobby_title = "🎮 Team Lobby" if with_loadouts else "👥 People Lobby"
+        self.lobby_message = None      # will be set after sending
+        self.results_message = None    # will be set after sending
 
     def get_lobby_embed(self):
         player_list = "\n".join([p.mention for p in self.players]) or "No players yet"
@@ -81,6 +74,12 @@ class TeamView(View):
     async def update_message(self, interaction):
         embed = self.get_lobby_embed()
         await interaction.message.edit(embed=embed, view=self)
+
+    async def refresh_lobby(self):
+        """Used by $add command (no interaction needed)"""
+        if self.lobby_message:
+            embed = self.get_lobby_embed()
+            await self.lobby_message.edit(embed=embed, view=self)
 
     @button(label="Join", style=discord.ButtonStyle.green)
     async def join_button(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -115,7 +114,7 @@ class TeamView(View):
         for i, player in enumerate(players_list):
             teams[i % self.num_teams].append(player)
 
-        # Build the final teams embed
+        # Build results embed
         if self.with_loadouts:
             embed = discord.Embed(title=f"🔥 {self.num_teams} Teams + Loadouts 🔥", color=discord.Color.orange())
         else:
@@ -131,11 +130,12 @@ class TeamView(View):
                     text += f"{user.mention}\n\n"
             embed.add_field(name=f"Team {i}", value=text, inline=False)
 
-        # REPLACE the lobby message with the results (no new message)
-        await interaction.response.edit_message(embed=embed, view=None)
-        self.stop()   # buttons are removed
+        # REPLACE the PREVIOUS team results message (NOT the lobby)
+        await interaction.response.defer()
+        await self.results_message.edit(embed=embed)
 
-        # Players stay in the list (so next time you run $teams/$people they are still there if you mention them again)
+        # Lobby stays exactly as-is (buttons + player list unchanged)
+        # Players are KEPT in the list for next use
 
 # ── COMMANDS ──
 @bot.command(aliases=["random","roll"])
@@ -160,22 +160,67 @@ async def teams(ctx, num_teams: int):
     if num_teams < 2:
         await ctx.send("You need at least 2 teams!")
         return
-    # Force-add anyone mentioned when command is run
     initial = ctx.message.mentions
     view = TeamView(num_teams, ctx.author, with_loadouts=True, initial_players=initial)
-    embed = view.get_lobby_embed()
-    await ctx.send(embed=embed, view=view)
+
+    # Send the persistent lobby (buttons stay forever)
+    lobby_embed = view.get_lobby_embed()
+    lobby_msg = await ctx.send(embed=lobby_embed, view=view)
+    view.lobby_message = lobby_msg
+
+    # Send the separate "Team Results" message that will be replaced on every Done
+    results_embed = discord.Embed(
+        title="🔥 Team Results 🔥",
+        description="Click **Done** in the lobby above to generate teams!",
+        color=discord.Color.orange()
+    )
+    results_msg = await ctx.send(embed=results_embed)
+    view.results_message = results_msg
+
+    bot.active_view = view  # for $add command
 
 @bot.command()
 async def people(ctx, num_teams: int):
     if num_teams < 2:
         await ctx.send("You need at least 2 teams!")
         return
-    # Force-add anyone mentioned when command is run
     initial = ctx.message.mentions
     view = TeamView(num_teams, ctx.author, with_loadouts=False, initial_players=initial)
-    embed = view.get_lobby_embed()
-    await ctx.send(embed=embed, view=view)
+
+    lobby_embed = view.get_lobby_embed()
+    lobby_msg = await ctx.send(embed=lobby_embed, view=view)
+    view.lobby_message = lobby_msg
+
+    results_embed = discord.Embed(
+        title="👥 Team Split Results 👥",
+        description="Click **Done** in the lobby above to split teams!",
+        color=discord.Color.orange()
+    )
+    results_msg = await ctx.send(embed=results_embed)
+    view.results_message = results_msg
+
+    bot.active_view = view
+
+@bot.command()
+async def add(ctx):
+    """Add more people to the current lobby after it has been created"""
+    if not hasattr(bot, 'active_view') or not bot.active_view:
+        await ctx.send("❌ No active lobby! Run `$teams` or `$people` first.")
+        return
+
+    mentions = ctx.message.mentions
+    if not mentions:
+        await ctx.send("❌ You need to mention at least one user to add!")
+        return
+
+    added = 0
+    for user in mentions:
+        if user not in bot.active_view.players:
+            bot.active_view.players.add(user)
+            added += 1
+
+    await bot.active_view.refresh_lobby()
+    await ctx.send(f"✅ Added **{added}** player(s) to the lobby!", delete_after=8)
 
 @bot.command()
 async def scrim(ctx):
