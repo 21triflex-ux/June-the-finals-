@@ -60,7 +60,7 @@ def build_embed(loadout, title, ctx):
     embed.set_footer(text=f"Requested by {ctx.author.display_name}")
     return embed
 
-# ── INTERACTIVE TEAM LOBBY (REUSABLE + FORCE-ADD SUPPORT) ──
+# ── INTERACTIVE TEAM LOBBY (REUSABLE + FORCE-ADD + REPLACES MESSAGE) ──
 class TeamView(View):
     def __init__(self, num_teams, host, with_loadouts=True, initial_players=None):
         super().__init__(timeout=1800)          # 30 minutes
@@ -115,7 +115,7 @@ class TeamView(View):
         for i, player in enumerate(players_list):
             teams[i % self.num_teams].append(player)
 
-        # Generate results embed
+        # Build the final teams embed
         if self.with_loadouts:
             embed = discord.Embed(title=f"🔥 {self.num_teams} Teams + Loadouts 🔥", color=discord.Color.orange())
         else:
@@ -131,12 +131,11 @@ class TeamView(View):
                     text += f"{user.mention}\n\n"
             embed.add_field(name=f"Team {i}", value=text, inline=False)
 
-        # Send the generated teams as a new message
-        await interaction.response.send_message(embed=embed)
+        # REPLACE the lobby message with the results (no new message)
+        await interaction.response.edit_message(embed=embed, view=None)
+        self.stop()   # buttons are removed
 
-        # RESET for reuse (this is what makes it multi-use)
-        self.players.clear()
-        await self.update_message(interaction)   # lobby goes back to empty
+        # Players stay in the list (so next time you run $teams/$people they are still there if you mention them again)
 
 # ── COMMANDS ──
 @bot.command(aliases=["random","roll"])
@@ -161,7 +160,7 @@ async def teams(ctx, num_teams: int):
     if num_teams < 2:
         await ctx.send("You need at least 2 teams!")
         return
-    # Force-add anyone mentioned
+    # Force-add anyone mentioned when command is run
     initial = ctx.message.mentions
     view = TeamView(num_teams, ctx.author, with_loadouts=True, initial_players=initial)
     embed = view.get_lobby_embed()
@@ -172,7 +171,7 @@ async def people(ctx, num_teams: int):
     if num_teams < 2:
         await ctx.send("You need at least 2 teams!")
         return
-    # Force-add anyone mentioned
+    # Force-add anyone mentioned when command is run
     initial = ctx.message.mentions
     view = TeamView(num_teams, ctx.author, with_loadouts=False, initial_players=initial)
     embed = view.get_lobby_embed()
