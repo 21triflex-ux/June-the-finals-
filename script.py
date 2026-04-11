@@ -51,17 +51,26 @@ def format_loadout(l):
         "\n".join(f"• {g}" for g in l["gadgets"])
     )
 
-# ── INTERACTIVE TEAM LOBBY (Persistent + Separate Results Message) ──
+def build_embed(loadout, title, ctx):
+    embed = discord.Embed(title=title, color=discord.Color.blue(), timestamp=ctx.message.created_at)
+    embed.add_field(name="Class", value=f"**{loadout['class']}**", inline=False)
+    embed.add_field(name="Weapon", value=loadout["weapon"], inline=True)
+    embed.add_field(name="Ability", value=loadout["ability"], inline=True)
+    embed.add_field(name="Gadgets", value="\n".join(f"• {g}" for g in loadout["gadgets"]), inline=False)
+    embed.set_footer(text=f"Requested by {ctx.author.display_name}")
+    return embed
+
+# ── INTERACTIVE TEAM LOBBY ──
 class TeamView(View):
     def __init__(self, num_teams, host, with_loadouts=True, initial_players=None):
-        super().__init__(timeout=1800)  # 30 minutes
+        super().__init__(timeout=1800)
         self.players = set(initial_players) if initial_players else set()
         self.num_teams = num_teams
         self.host = host
         self.with_loadouts = with_loadouts
         self.lobby_title = "🎮 Team Lobby" if with_loadouts else "👥 People Lobby"
-        self.lobby_message = None      # will be set after sending
-        self.results_message = None    # will be set after sending
+        self.lobby_message = None
+        self.results_message = None
 
     def get_lobby_embed(self):
         player_list = "\n".join([p.mention for p in self.players]) or "No players yet"
@@ -76,7 +85,6 @@ class TeamView(View):
         await interaction.message.edit(embed=embed, view=self)
 
     async def refresh_lobby(self):
-        """Used by $add command (no interaction needed)"""
         if self.lobby_message:
             embed = self.get_lobby_embed()
             await self.lobby_message.edit(embed=embed, view=self)
@@ -114,7 +122,6 @@ class TeamView(View):
         for i, player in enumerate(players_list):
             teams[i % self.num_teams].append(player)
 
-        # Build results embed
         if self.with_loadouts:
             embed = discord.Embed(title=f"🔥 {self.num_teams} Teams + Loadouts 🔥", color=discord.Color.orange())
         else:
@@ -130,12 +137,46 @@ class TeamView(View):
                     text += f"{user.mention}\n\n"
             embed.add_field(name=f"Team {i}", value=text, inline=False)
 
-        # REPLACE the PREVIOUS team results message (NOT the lobby)
         await interaction.response.defer()
         await self.results_message.edit(embed=embed)
 
-        # Lobby stays exactly as-is (buttons + player list unchanged)
-        # Players are KEPT in the list for next use
+# ── SIMPLE RSP ROSTER (Join/Leave only) ──
+class RSPView(View):
+    def __init__(self, initial_players=None):
+        super().__init__(timeout=None)  # permanent
+        self.players = set(initial_players) if initial_players else set()
+        self.message = None
+
+    def get_embed(self):
+        player_list = "\n".join([p.mention for p in self.players]) or "No players yet"
+        return discord.Embed(
+            title="📋 RSP List",
+            description=f"**Players ({len(self.players)}):**\n{player_list}\n\nClick **Join** or **Leave** below!",
+            color=discord.Color.green()
+        )
+
+    async def update(self):
+        if self.message:
+            embed = self.get_embed()
+            await self.message.edit(embed=embed, view=self)
+
+    @button(label="Join", style=discord.ButtonStyle.green)
+    async def join_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if interaction.user in self.players:
+            await interaction.response.send_message("You're already in!", ephemeral=True)
+            return
+        self.players.add(interaction.user)
+        await interaction.response.defer()
+        await self.update()
+
+    @button(label="Leave", style=discord.ButtonStyle.red)
+    async def leave_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if interaction.user not in self.players:
+            await interaction.response.send_message("You're not in!", ephemeral=True)
+            return
+        self.players.remove(interaction.user)
+        await interaction.response.defer()
+        await self.update()
 
 # ── COMMANDS ──
 @bot.command(aliases=["random","roll"])
@@ -163,12 +204,10 @@ async def teams(ctx, num_teams: int):
     initial = ctx.message.mentions
     view = TeamView(num_teams, ctx.author, with_loadouts=True, initial_players=initial)
 
-    # Send the persistent lobby (buttons stay forever)
     lobby_embed = view.get_lobby_embed()
     lobby_msg = await ctx.send(embed=lobby_embed, view=view)
     view.lobby_message = lobby_msg
 
-    # Send the separate "Team Results" message that will be replaced on every Done
     results_embed = discord.Embed(
         title="🔥 Team Results 🔥",
         description="Click **Done** in the lobby above to generate teams!",
@@ -177,7 +216,7 @@ async def teams(ctx, num_teams: int):
     results_msg = await ctx.send(embed=results_embed)
     view.results_message = results_msg
 
-    bot.active_view = view  # for $add command
+    bot.active_view = view
 
 @bot.command()
 async def people(ctx, num_teams: int):
@@ -203,14 +242,16 @@ async def people(ctx, num_teams: int):
 
 @bot.command()
 async def add(ctx):
-    """Add more people to the current lobby after it has been created"""
+    """Add people to the current lobby (deletes your command message)"""
     if not hasattr(bot, 'active_view') or not bot.active_view:
-        await ctx.send("❌ No active lobby! Run `$teams` or `$people` first.")
+        await ctx.send("❌ No active lobby! Run `$teams` or `$people` first.", delete_after=10)
+        await ctx.message.delete()
         return
 
     mentions = ctx.message.mentions
     if not mentions:
-        await ctx.send("❌ You need to mention at least one user to add!")
+        await ctx.send("❌ Mention at least one user to add!", delete_after=8)
+        await ctx.message.delete()
         return
 
     added = 0
@@ -220,7 +261,17 @@ async def add(ctx):
             added += 1
 
     await bot.active_view.refresh_lobby()
-    await ctx.send(f"✅ Added **{added}** player(s) to the lobby!", delete_after=8)
+    await ctx.send(f"✅ Added **{added}** player(s)!", delete_after=8)
+    await ctx.message.delete()   # deletes the $add command message
+
+@bot.command()
+async def rsp(ctx):
+    """Simple persistent RSP roster (Join/Leave only)"""
+    initial = ctx.message.mentions
+    view = RSPView(initial_players=initial)
+    embed = view.get_embed()
+    msg = await ctx.send(embed=embed, view=view)
+    view.message = msg
 
 @bot.command()
 async def scrim(ctx):
