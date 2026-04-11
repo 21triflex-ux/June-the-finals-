@@ -60,23 +60,26 @@ def build_embed(loadout, title, ctx):
     embed.set_footer(text=f"Requested by {ctx.author.display_name}")
     return embed
 
-# ── INTERACTIVE TEAM LOBBY ──
+# ── INTERACTIVE TEAM LOBBY (REUSABLE + FORCE-ADD SUPPORT) ──
 class TeamView(View):
-    def __init__(self, num_teams, host, with_loadouts=True):
-        super().__init__(timeout=300)
-        self.players = set()
+    def __init__(self, num_teams, host, with_loadouts=True, initial_players=None):
+        super().__init__(timeout=1800)          # 30 minutes
+        self.players = set(initial_players) if initial_players else set()
         self.num_teams = num_teams
         self.host = host
         self.with_loadouts = with_loadouts
         self.lobby_title = "🎮 Team Lobby" if with_loadouts else "👥 People Lobby"
 
-    async def update_message(self, interaction):
+    def get_lobby_embed(self):
         player_list = "\n".join([p.mention for p in self.players]) or "No players yet"
-        embed = discord.Embed(
+        return discord.Embed(
             title=self.lobby_title,
             description=f"**Teams:** {self.num_teams}\n\n**Players ({len(self.players)}):**\n{player_list}",
             color=discord.Color.blue()
         )
+
+    async def update_message(self, interaction):
+        embed = self.get_lobby_embed()
         await interaction.message.edit(embed=embed, view=self)
 
     @button(label="Join", style=discord.ButtonStyle.green)
@@ -109,10 +112,10 @@ class TeamView(View):
         players_list = list(self.players)
         random.shuffle(players_list)
         teams = [[] for _ in range(self.num_teams)]
-
         for i, player in enumerate(players_list):
             teams[i % self.num_teams].append(player)
 
+        # Generate results embed
         if self.with_loadouts:
             embed = discord.Embed(title=f"🔥 {self.num_teams} Teams + Loadouts 🔥", color=discord.Color.orange())
         else:
@@ -128,8 +131,12 @@ class TeamView(View):
                     text += f"{user.mention}\n\n"
             embed.add_field(name=f"Team {i}", value=text, inline=False)
 
+        # Send the generated teams as a new message
         await interaction.response.send_message(embed=embed)
-        self.stop()
+
+        # RESET for reuse (this is what makes it multi-use)
+        self.players.clear()
+        await self.update_message(interaction)   # lobby goes back to empty
 
 # ── COMMANDS ──
 @bot.command(aliases=["random","roll"])
@@ -154,12 +161,10 @@ async def teams(ctx, num_teams: int):
     if num_teams < 2:
         await ctx.send("You need at least 2 teams!")
         return
-    view = TeamView(num_teams, ctx.author)
-    embed = discord.Embed(
-        title=view.lobby_title,
-        description=f"**Teams:** {num_teams}\n\nClick **Join** to enter!",
-        color=discord.Color.blue()
-    )
+    # Force-add anyone mentioned
+    initial = ctx.message.mentions
+    view = TeamView(num_teams, ctx.author, with_loadouts=True, initial_players=initial)
+    embed = view.get_lobby_embed()
     await ctx.send(embed=embed, view=view)
 
 @bot.command()
@@ -167,12 +172,10 @@ async def people(ctx, num_teams: int):
     if num_teams < 2:
         await ctx.send("You need at least 2 teams!")
         return
-    view = TeamView(num_teams, ctx.author, with_loadouts=False)
-    embed = discord.Embed(
-        title=view.lobby_title,
-        description=f"**Teams:** {num_teams}\n\nClick **Join** to enter!",
-        color=discord.Color.blue()
-    )
+    # Force-add anyone mentioned
+    initial = ctx.message.mentions
+    view = TeamView(num_teams, ctx.author, with_loadouts=False, initial_players=initial)
+    embed = view.get_lobby_embed()
     await ctx.send(embed=embed, view=view)
 
 @bot.command()
