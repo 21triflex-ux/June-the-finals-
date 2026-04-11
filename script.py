@@ -261,7 +261,6 @@ async def add(ctx):
             added += 1
 
     await bot.active_view.refresh_lobby()
-    await ctx.send(f"✅ Added **{added}** player(s)!", delete_after=8)
     await ctx.message.delete()   # deletes the $add command message
 
 @bot.command()
