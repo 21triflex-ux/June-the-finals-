@@ -143,7 +143,7 @@ class TeamView(View):
 # ── SIMPLE RSP ROSTER (Join/Leave only) ──
 class RSPView(View):
     def __init__(self, initial_players=None):
-        super().__init__(timeout=None)  # permanent
+        super().__init__(timeout=None)
         self.players = set(initial_players) if initial_players else set()
         self.message = None
 
@@ -261,7 +261,32 @@ async def add(ctx):
             added += 1
 
     await bot.active_view.refresh_lobby()
-    await ctx.message.delete()   # deletes the $add command message
+    await ctx.send(f"✅ Added **{added}** player(s)!", delete_after=8)
+    await ctx.message.delete()
+
+@bot.command()
+async def remove(ctx):
+    """Remove people from the current lobby (deletes your command message)"""
+    if not hasattr(bot, 'active_view') or not bot.active_view:
+        await ctx.send("❌ No active lobby! Run `$teams` or `$people` first.", delete_after=10)
+        await ctx.message.delete()
+        return
+
+    mentions = ctx.message.mentions
+    if not mentions:
+        await ctx.send("❌ Mention at least one user to remove!", delete_after=8)
+        await ctx.message.delete()
+        return
+
+    removed = 0
+    for user in mentions:
+        if user in bot.active_view.players:
+            bot.active_view.players.remove(user)
+            removed += 1
+
+    await bot.active_view.refresh_lobby()
+    await ctx.send(f"✅ Removed **{removed}** player(s)!", delete_after=8)
+    await ctx.message.delete()
 
 @bot.command()
 async def rsp(ctx):
