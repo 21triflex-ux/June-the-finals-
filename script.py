@@ -23,12 +23,12 @@ WEAPONS = {
     "Heavy": [".50 Akimbo","BFR Titan","Flamethrower","KS-23","Lewis Gun","M134 Minigun","M60","MGL32","SA1216","ShAK-50","Sledgehammer","Spear"]
 }
 ABILITIES = {
-    "Light": ["Cloaking Device","Evasive Dash","Grappling Hook"],
+    "Light": ["Cloaking Device","Evasive Dash","Grappling Hook","True Sight"],
     "Medium": ["Healing Beam","Dematerializer","Guardian Turret","Shock Wave"],
     "Heavy": ["Charge 'N' Slam","Mesh Shield","Goo Gun","Winch Claw"]
 }
 GADGETS_BY_CLASS = {
-    "Light": ["Breach Charge","Gateway","Glitch Grenade","Gravity Vortex","H+ Infuser","Sonar Grenade","Nullifier","Thermal Bore","Tracking Dart","Vanishing Bomb","Flashbang","Frag Grenade","Gas Grenade","Goo Grenade","Pyro Grenade","Smoke Grenade"],
+    "Light": ["Breach Charge","Gateway","Glitch Grenade","Gravity Vortex","H+ Infuser","Sonar Grenade","Nullifier","Thermal Bore","Tracking Dart","Vanishing Bomb","Flashbang","Frag Grenade","Gas Grenade","Goo Grenade","Pyro Grenade","Smoke Grenade","Translocator","Mimic Device"],
     "Medium": ["APS Turret","Breach Drill","Data Reshaper","Defibrillator","Explosive Mine","Gas Mine","Glitch Trap","Jump Pad","Zipline","Proximity Sensor","Flashbang","Frag Grenade","Gas Grenade","Goo Grenade","Pyro Grenade","Smoke Grenade","Hover Pad"],
     "Heavy": ["Anti-Gravity Cube","Barricade","C4","Dome Shield","Explosive Mine","Healing Emitter","Proximity Sensor","Lockbolt","Pyro Mine","RPG-7","Flashbang","Frag Grenade","Gas Grenade","Goo Grenade","Pyro Grenade","Smoke Grenade"]
 }
